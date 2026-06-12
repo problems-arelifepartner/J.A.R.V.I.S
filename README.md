@@ -12,7 +12,9 @@ git clone https://github.com/problems-arelifepartner/J.A.R.V.I.S.git
 ```
 cd J.A.R.V.I.S
 termux-setup-storage
-cp 1000216972.png /sdcard/Download/ .
+cp 1000216972.png /sdcard/Download/
+```
+```
 chmod 777 jarvis-terminal
 cd jarvis-terminal
 python setup.py
