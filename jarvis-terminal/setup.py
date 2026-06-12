@@ -33,8 +33,9 @@ def install_python_packages():
     run_command(f"{sys.executable} -m pip install --upgrade pip setuptools wheel")
     
     # Notice we removed the cryptography package. We don't need it anymore!
-    packages = ["google-generativeai", "speechrecognition", "gTTS", "pyaudio", "pocketsphinx"]
     
+    packages = ["google-generativeai", "speechrecognition", "gTTS", "pyaudio", "pocketsphinx", "term-image"]
+
     for pkg in packages:
         success = run_command(f"{sys.executable} -m pip install {pkg}", capture_error=True)
         if not success:
