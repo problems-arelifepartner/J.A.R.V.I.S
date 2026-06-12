@@ -21,5 +21,5 @@ python setup.py
 python jarvis.py
 ```
 <p>
-  <img src= "https://github.com/problems-arelifepartner/J.A.R.V.I.S/blob/732785f0a2aa7640a0e8f4186cbba8c58fc1110e/IamIronMan.gif"
+  <img src= "https://github.com/problems-arelifepartner/J.A.R.V.I.S/blob/732785f0a2aa7640a0e8f4186cbba8c58fc1110e/IamIronMan.gif"/>
 </p>
