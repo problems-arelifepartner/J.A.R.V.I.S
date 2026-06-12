@@ -1,6 +1,18 @@
 # J.A.R.V.I.S
 Personal assistant 
 
-## pip install cx_Freeze
+# '' pkg update && pkg upgrade -y
 
-## python setup.py build
+# '' pkg install git python -y
+
+# '' git clone https://github.com/problems-arelifepartner/J.A.R.V.I.S.git
+
+# '' cd J.A.R.V.I.S
+
+# '' termux-setup-storage
+
+# '' cp /sdcard/Download/1000216972.png .
+
+# '' python setup.py
+
+# '' jarvis.py
