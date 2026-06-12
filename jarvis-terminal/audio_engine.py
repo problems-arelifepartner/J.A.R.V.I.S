@@ -33,15 +33,50 @@ class AudioEngine:
         except Exception as e:
             print(f"[Audio Output Error] Failed to speak: {e}")
 
-    def listen(self) -> str:
-        """Captures audio from microphone cleanly and returns text."""
+    def wait_for_wake_word(self, wake_word="jarvis"):
+        """Lightweight background loop waiting for the wake word."""
+        print(f"\n[Standby] Waiting for wake word: '{wake_word}'...")
+        
         with sr.Microphone() as source:
-            print("\nListening...")
+            # Adjust for background noise once before entering the loop
             self.recognizer.adjust_for_ambient_noise(source, duration=1)
+            
+            while True:
+                try:
+                    # Listen in very short 3-second windows to save memory and processing
+                    audio = self.recognizer.listen(source, timeout=1, phrase_time_limit=3)
+                    
+                    # --- WAKE WORD ENGINE ---
+                    # Default: Google Web API (Requires internet, might hit rate limits if left on 24/7)
+                    text = self.recognizer.recognize_google(audio).lower()
+                    
+                    # PRO-TIP: If you install pocketsphinx (pip install pocketsphinx), 
+                    # comment out the Google line above and uncomment the line below for offline listening:
+                    # text = self.recognizer.recognize_sphinx(audio).lower()
+                    
+                    if wake_word in text:
+                        print("\n[Wake Word Detected!]")
+                        return True
+                        
+                except sr.UnknownValueError:
+                    # Normal behavior: background noise was heard but wasn't understood. Ignore.
+                    pass 
+                except sr.WaitTimeoutError:
+                    # Normal behavior: no one spoke during the timeout window. Loop silently.
+                    continue
+                except Exception as e:
+                    # Suppress minor connection drops to keep the loop alive
+                    pass
+
+    def listen(self) -> str:
+        """Captures active command audio from microphone cleanly and returns text."""
+        with sr.Microphone() as source:
+            print("Listening for command...")
+            self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
             try:
                 audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=10)
                 print("Processing speech...")
-                # Using Google's web speech API for high-accuracy lightweight parsing
+                # Using Google's web speech API for high-accuracy complex command parsing
                 query = self.recognizer.recognize_google(audio)
                 print(f"👤 You: {query}")
                 return query
