@@ -7,6 +7,7 @@ def run_command(command, use_sudo=False, capture_error=False):
     if use_sudo and not is_termux():
         command = f"sudo {command}"
     try:
+        # We will now show the logs so it doesn't look stuck
         if capture_error:
             subprocess.run(command, shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
@@ -30,21 +31,25 @@ def install_system_dependencies():
 
 def install_python_packages():
     print("\n--- Phase 2: Python Packages ---")
-    run_command(f"{sys.executable} -m pip install --upgrade pip setuptools wheel")
     
-    # Notice we removed the cryptography package. We don't need it anymore!
+    # FIX 1: Removed 'pip' from this line so Termux doesn't throw the yellow warning!
+    run_command(f"{sys.executable} -m pip install --upgrade setuptools wheel")
     
     packages = ["google-generativeai", "speechrecognition", "gTTS", "pyaudio", "pocketsphinx", "term-image"]
-
+    
     for pkg in packages:
-        success = run_command(f"{sys.executable} -m pip install {pkg}", capture_error=True)
+        print(f"\n[*] Installing {pkg}... (Please wait, this can take a few minutes on Android)")
+        
+        # FIX 2: capture_error is now set to False. You will see a massive wall of text scrolling. 
+        # This is GOOD. It means it is working and not stuck!
+        success = run_command(f"{sys.executable} -m pip install {pkg}", capture_error=False)
+        
         if not success:
-            run_command(f"{sys.executable} -m pip install {pkg} --no-cache-dir --force-reinstall", capture_error=True)
+            print(f"[!] Fallback triggered for {pkg}...")
+            run_command(f"{sys.executable} -m pip install {pkg} --no-cache-dir --force-reinstall", capture_error=False)
 
 def setup_api_key():
     print("\n--- Phase 3: API Configuration ---")
-    
-    # 1. Ask for the API key if it doesn't exist locally
     if not os.path.exists("api_key.txt"):
         print("To use J.A.R.V.I.S., you need a free Gemini API key from Google AI Studio.")
         api_key = input("Please paste your Gemini API Key here: ").strip()
@@ -59,7 +64,7 @@ def setup_api_key():
     else:
         print("[+] Local 'api_key.txt' found.")
 
-    # 2. Automatically protect the user from uploading it to GitHub
+    # Automatically protect the user from uploading it to GitHub
     gitignore_entry = "api_key.txt\n"
     if not os.path.exists(".gitignore"):
         with open(".gitignore", "w") as f:
