@@ -13,6 +13,10 @@ Personal assistant
 
 # '' cp /sdcard/Download/1000216972.png .
 
+# '' chmod jarvis-terminal
+
+# '' cd jarvis-terminal
+
 # '' python setup.py
 
-# '' jarvis.py
+# '' python jarvis.py
