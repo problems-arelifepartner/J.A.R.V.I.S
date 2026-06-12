@@ -8,15 +8,24 @@ class Config:
         self.is_termux = "TERMUX_VERSION" in os.environ
         self.is_linux = sys.platform.startswith("linux") and not self.is_termux
         
-        # 2. Check API Key
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        if not self.api_key:
-            print("[ERROR] GEMINI_API_KEY environment variable is missing.")
-            print("Please set it using: export GEMINI_API_KEY='your_key'")
-            sys.exit(1)
+        # 2. Load API Key
+        self.api_key = self.load_api_key()
             
         # 3. Validate System Dependencies
         self.validate_dependencies()
+
+    def load_api_key(self):
+        """Reads the user's API key from the local file."""
+        try:
+            with open("api_key.txt", "r") as f:
+                key = f.read().strip()
+                if not key:
+                    raise ValueError("API key file is empty.")
+                return key
+        except (FileNotFoundError, ValueError):
+            print("[ERROR] Missing or empty 'api_key.txt'.")
+            print("Please run 'python setup.py' to configure your API key.")
+            sys.exit(1)
 
     def validate_dependencies(self):
         required_commands = ["mpv"] if not self.is_termux else ["termux-tts-speak"]
