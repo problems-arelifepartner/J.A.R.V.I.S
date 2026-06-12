@@ -3,7 +3,7 @@ import json
 import google.generativeai as genai
 from config import Config
 from audio_engine import AudioEngine
-from tools import JARVIS_TOOLS, list_files, read_file_content, execute_system_command
+from tools import JARVIS_TOOLS
 
 # System guidelines handling persona and emotional response rules
 SYSTEM_INSTRUCTION = """
@@ -31,32 +31,43 @@ class JarvisCore:
         self.chat = self.model.start_chat(enable_automatic_function_calling=True)
 
     def run(self):
-        self.audio.speak("Systems initialized and online, sir. How may I assist you today?")
+        self.audio.speak("Systems initialized and online, sir. Standing by for your command.")
         
         while True:
             try:
-                query = self.audio.listen()
-                
-                if not query:
-                    continue
-                
-                # Check for explicit shutdown phrase
-                if any(exit_phrase in query.lower() for exit_phrase in ["go to sleep", "shutdown jarvis", "exit"]):
-                    self.audio.speak("Powering down systems. Goodbye, sir.")
-                    break
-                
-                # Process thought through Gemini with automatic tool orchestration
-                response = self.chat.send_message(query)
-                
-                if response.text:
-                    self.audio.speak(response.text)
+                # 1. Block and wait for the wake word passively
+                if self.audio.wait_for_wake_word("jarvis"):
+                    
+                    # 2. Acknowledge the user to indicate Active mode
+                    self.audio.speak("Yes, sir?")
+                    
+                    # 3. Listen for the actual command
+                    query = self.audio.listen()
+                    
+                    if not query:
+                        self.audio.speak("I didn't catch that, sir. Returning to standby.")
+                        continue
+                    
+                    # Check for explicit shutdown phrases
+                    if any(exit_phrase in query.lower() for exit_phrase in ["go to sleep", "shutdown", "exit"]):
+                        self.audio.speak("Powering down systems. Goodbye, sir.")
+                        break
+                    
+                    # 4. Process the command through Gemini
+                    print("[Processing Request...]")
+                    response = self.chat.send_message(query)
+                    
+                    if response.text:
+                        self.audio.speak(response.text)
+                    
+                    # Loop restarts and goes back to standby mode automatically
                     
             except KeyboardInterrupt:
                 self.audio.speak("Terminating program loops safely.")
                 break
             except Exception as e:
                 print(f"\n[Core Fault Handler] {e}")
-                self.audio.speak("I encountered an internal processing variance, sir. Retrying loop.")
+                self.audio.speak("I encountered an internal processing variance. Resetting to standby.")
 
 if __name__ == "__main__":
     jarvis = JarvisCore()
