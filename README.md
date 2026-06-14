@@ -1,5 +1,7 @@
 # J.A.R.V.I.S
 Personal assistant 
+ 
+# Fork the tool befor using it and give the aistudio.google.com API in the api_key.txt file located inside the J.A.R.V.I.S/jarvis-terminal
 ```
 pkg update && pkg upgrade -y
 pkg install git python -y
