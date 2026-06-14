@@ -1,13 +1,13 @@
 import os
 import json
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from config import Config
 from audio_engine import AudioEngine
 from tools import JARVIS_TOOLS
 
-# System guidelines handling persona and emotional response rules
 SYSTEM_INSTRUCTION = """
-You are J.A.R.V.I.S., an advanced AI assistant inspired by Iron Man. 
+You are J.A.R.V.I.S., an advanced AI assistant inspired by Iron Man.
 Your tone is sophisticated, brilliantly intelligent, crisp, and slightly witty with a British cadence.
 
 Crucial Directives:
@@ -20,48 +20,40 @@ class JarvisCore:
     def __init__(self):
         self.config = Config()
         self.audio = AudioEngine(self.config)
-        
-        # Configure Gemini Client
-        genai.configure(api_key=self.config.api_key)
-        self.model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash", # Highly responsive for real-time voice latency
+        self.client = genai.Client(api_key=self.config.api_key)
+        self.chat_config = types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION,
-            tools=JARVIS_TOOLS
+            tools=JARVIS_TOOLS,
+            temperature=0.7
         )
-        self.chat = self.model.start_chat(enable_automatic_function_calling=True)
+        self.chat = self.client.chats.create(
+            model="gemini-2.5-flash",
+            config=self.chat_config
+        )
 
     def run(self):
         self.audio.speak("Systems initialized and online, sir. Standing by for your command.")
-        
+
         while True:
             try:
-                # 1. Block and wait for the wake word passively
                 if self.audio.wait_for_wake_word("jarvis"):
-                    
-                    # 2. Acknowledge the user to indicate Active mode
                     self.audio.speak("Yes, sir?")
-                    
-                    # 3. Listen for the actual command
                     query = self.audio.listen()
-                    
+
                     if not query:
                         self.audio.speak("I didn't catch that, sir. Returning to standby.")
                         continue
-                    
-                    # Check for explicit shutdown phrases
+
                     if any(exit_phrase in query.lower() for exit_phrase in ["go to sleep", "shutdown", "exit"]):
                         self.audio.speak("Powering down systems. Goodbye, sir.")
                         break
-                    
-                    # 4. Process the command through Gemini
+
                     print("[Processing Request...]")
                     response = self.chat.send_message(query)
-                    
+
                     if response.text:
                         self.audio.speak(response.text)
-                    
-                    # Loop restarts and goes back to standby mode automatically
-                    
+
             except KeyboardInterrupt:
                 self.audio.speak("Terminating program loops safely.")
                 break
