@@ -9,18 +9,8 @@ git clone https://github.com/problems-arelifepartner/J.A.R.V.I.S.git
 ```
 <p>
 <img src= "https://github.com/problems-arelifepartner/J.A.R.V.I.S/blob/443d1475d644763b4631dfe32478eb5dea76a2f9/1000216972.png"/>
-</p>
+</p> 
 
-```
-cd J.A.R.V.I.S
-termux-setup-storage
-cp 1000216972.png /sdcard/Download/
-```
-```
-chmod 777 jarvis-terminal
-cd jarvis-terminal
-python setup.py
-python jarvis.py
 ```
 <img src= "https://github.com/problems-arelifepartner/J.A.R.V.I.S/blob/b28cfc0065b64813658084d4510dff742f6c3429/IamIronMan.gif"/>
 
@@ -65,6 +55,36 @@ git clone https://github.com/problems-arelifepartner/J.A.R.V.I.S.git
 cd J.A.R.V.I.S
 
 python setup.py
+
+echo "YOUR_GEMINI_API_KEY_HERE" > api_key.txt
+
+python jarvis.py
+
+Voice Operation Sequence:
+Upon starting, J.A.R.V.I.S. will perform system sweeps. If all permissions are approved, he will announce: "Uplink established, sir. Mainframe is in standby. Speak the activation phrase when ready."
+Standby Mode: J.A.R.V.I.S. enters a passive, low-power listening cycle. The screen will read: [ STANDBY ] Monitoring environmental acoustic data....
+Activation: Speak any of the trigger phrases clearly (e.g., "Hey Jarvis" or "Assemble").
+Once triggered, the terminal shifts status to [✓] Trigger Word Detected. and J.A.R.V.I.S. will speak: "Always, sir. What is your directive?"
+Command Delivery: The console displays >>> [ ACTIVE LISTENING ] <<<. State your command or question naturally within the 5.5-second recording window.
+Processing & Feedback: J.A.R.V.I.S. processes the command, vocalizes the solution through your speakers, and automatically resets back to Standby Mode.
+To shut down the script safely at any time, press CTRL + C on your terminal.
+Troubleshooting Permissions
+If J.A.R.V.I.S. fails during initialization, check for the following:
+Storage Permission Error:
+Run termux-setup-storage manually in the terminal, accept the Android system prompt, and restart the script.
+Microphone Access Blocked (0 Bytes):
+Open Android Settings -> Apps -> Termux:API -> Permissions and toggle Microphone to Allow.
+No Voice Output (Silence):
+Check that Google Text-to-Speech (or your device's default speech engine) is enabled in Android's Language & Input -> Text-to-speech output settings.
+
+Copyright, Licensing & Legal Disclaimers
+Open Source License
+This project is licensed under the terms of the MIT License. You are free to modify, distribute, and utilize the software for personal, non-commercial purposes, provided the original copyright notice and permission consent are retained.
+Trademark Disclaimer
+J.A.R.V.I.S., Tony Stark, Stark Industries, and Iron Man are registered trademarks of Marvel Characters, Inc. and The Walt Disney Company.
+This project is an independent, non-profit, open-source educational demonstration and creative tribute. It is not affiliated with, endorsed by, or associated with Marvel, Disney, or any of their partner subsidiaries.
+API Usage Terms
+This application utilizes Google AI Studio API keys. Users are responsible for adhering to the Google APIs Terms of Service and managing their own secure key storage.
 
 
 
