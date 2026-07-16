@@ -2,9 +2,8 @@ import os
 import sys
 import time
 import subprocess
-from datetime import datetime
 
-# Try to import optional libraries, fallback gracefully if missing
+# Try to import colorama, fallback to plain text if missing
 try:
     from colorama import init, Fore, Style
     init(autoreset=True)
@@ -13,7 +12,6 @@ try:
     RED = Fore.RED
     YELLOW = Fore.YELLOW
     BLUE = Fore.BLUE
-    MAGENTA = Fore.MAGENTA
     RESET = Style.RESET_ALL
 except ImportError:
     GREEN = ""
@@ -21,14 +19,7 @@ except ImportError:
     RED = ""
     YELLOW = ""
     BLUE = ""
-    MAGENTA = ""
     RESET = ""
-
-try:
-    from PIL import Image
-    HAS_PIL = True
-except ImportError:
-    HAS_PIL = False
 
 def load_api_key():
     api_key_path = "api_key.txt"
@@ -41,95 +32,139 @@ def load_api_key():
         
     if not key:
         print(f"{RED}[!] Error: 'api_key.txt' is empty.")
-        print(f"{YELLOW}[*] Please paste your Google Gemini API key from https://aistudio.google.com/ into api_key.txt.{RESET}")
+        print(f"{YELLOW}[*] Please paste your Google Gemini API key into api_key.txt.{RESET}")
         sys.exit(1)
         
     return key
 
+def speak(text):
+    """Speaks the response out loud using Termux's native Text-to-Speech."""
+    try:
+        subprocess.run(["termux-tts-speak", text], check=True)
+    except FileNotFoundError:
+        print(f"{RED}[!] Error: 'termux-tts-speak' not found. Ensure the termux-api package is installed.{RESET}")
+
+def clear_temp_file(filename="temp_voice.aac"):
+    """Deletes temporary recording files to prevent recording blocks."""
+    if os.path.exists(filename):
+        try:
+            os.remove(filename)
+        except Exception:
+            pass
+
+def verify_and_request_permissions():
+    """Checks and requests all necessary permissions. Exits if any are missing."""
+    print(f"{CYAN}[*] J.A.R.V.I.S. Core: Performing hardware & permission sweep...{RESET}")
+    time.sleep(0.5)
+
+    # 1. Verify if termux-api package commands exist
+    try:
+        subprocess.run(["termux-api-start"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except FileNotFoundError:
+        print(f"{RED}[!] PERMISSION DENIED: 'termux-api' binary packages are missing in your environment.")
+        print(f"{YELLOW}[*] Action Required: Run 'pkg install termux-api' in Termux and restart J.A.R.V.I.S.{RESET}")
+        sys.exit(1)
+
+    # 2. Check and Request Storage Permission
+    storage_granted = False
+    try:
+        storage_path = os.path.expanduser("~/storage")
+        if os.path.exists(storage_path) and os.listdir(storage_path):
+            storage_granted = True
+    except Exception:
+        pass
+
+    if not storage_granted:
+        print(f"{YELLOW}[!] Storage Access Required. Initiating 'termux-setup-storage'...{RESET}")
+        print(f"{YELLOW}[*] Action Required: Tap 'Allow' on the Android popup dialog.{RESET}")
+        try:
+            subprocess.run(["termux-setup-storage"], check=True)
+            time.sleep(3)  # Allow a short buffer for the user to respond
+            
+            if os.path.exists(os.path.expanduser("~/storage")):
+                storage_granted = True
+        except Exception:
+            pass
+
+    if not storage_granted:
+        print(f"{RED}[!] PERMISSION DENIED: Storage permissions were not granted.")
+        print(f"{YELLOW}[*] Action Required: Go to Android Settings -> Apps -> Termux -> Permissions and manually enable Storage.{RESET}")
+        sys.exit(1)
+    else:
+        print(f"{GREEN}[✓] Storage Permission: APPROVED{RESET}")
+
+    # 3. Check and Request Microphone Permission
+    print(f"{CYAN}[*] Verifying Microphone hardware status...{RESET}")
+    mic_granted = False
+    test_file = "test_perm.aac"
+    clear_temp_file(test_file)
+        
+    try:
+        # Start a 1-second dummy recording to check hardware integration
+        proc = subprocess.Popen(
+            ["termux-microphone-record", "-f", test_file],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        time.sleep(1)
+        # End test recording
+        subprocess.run(["termux-microphone-record", "-q"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        # Android returns an empty or missing file if microphone access is blocked
+        if os.path.exists(test_file) and os.path.getsize(test_file) > 0:
+            mic_granted = True
+            clear_temp_file(test_file)
+    except Exception:
+        pass
+
+    if not mic_granted:
+        print(f"{RED}[!] PERMISSION DENIED: Microphone hardware is blocked.")
+        print(f"{YELLOW}[*] Action Required: Go to Android Settings -> Apps -> Termux:API -> Permissions and enable 'Microphone'.{RESET}")
+        sys.exit(1)
+    else:
+        print(f"{GREEN}[✓] Microphone Permission: APPROVED{RESET}")
+
+    # 4. Verify Text-To-Speech Engine availability
+    try:
+        proc = subprocess.run(["termux-tts-engines"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if proc.returncode == 0:
+            print(f"{GREEN}[✓] Speech Synthesis (TTS): APPROVED{RESET}")
+        else:
+            raise Exception()
+    except Exception:
+        print(f"{RED}[!] ERROR: Text-to-Speech services are not responding.")
+        print(f"{YELLOW}[*] Action Required: Ensure Google TTS or equivalent speech synthesis engine is active on your device.{RESET}")
+        sys.exit(1)
+
+    print(f"{GREEN}[+] ALL PERMISSIONS APPROVED. Mainframe clearing for initialization.\n{RESET}")
+    time.sleep(1)
+
 def startup_sequence():
-    """Simulates a high-tech Stark Industries boot sequence."""
+    """Immersive start animation for J.A.R.V.I.S."""
     print(f"{BLUE}==================================================")
     print(f"{BLUE}         STARK INDUSTRIES MAIN MAINFRAME          ")
-    print(f"{BLUE}               SYSTEM VERSION 5.1.0               ")
+    print(f"{BLUE}               SYSTEM VERSION 11.0.0              ")
     print(f"{BLUE}=================================================={RESET}")
     time.sleep(0.2)
-    print(f"{CYAN}[*] Connecting to multi-language databanks...")
+    print(f"{CYAN}[*] Calibrating high-reasoning neural arrays...")
     time.sleep(0.3)
-    print(f"{CYAN}[*] Calibrating auditory & visual sensory arrays...")
+    print(f"{CYAN}[*] Uploading emotional stabilization drivers...")
     time.sleep(0.3)
-    print(f"{CYAN}[*] Activating Arc Reactor safety protocols...")
-    time.sleep(0.2)
     
-    # Simple ASCII representation of the Arc Reactor
+    # ASCII visual of the Arc Reactor
     print(f"\n{BLUE}               .----.    ")
     print(f"{BLUE}            . /  ||  \\ . ")
     print(f"{BLUE}            |/   ||   \\| ")
-    print(f"{BLUE}            ||===()===||  [ MULTIMODAL ARCS: ONLINE ]")
+    print(f"{BLUE}            ||===()===||  [ API STACK: GEMINI 3.5 PRO ]")
     print(f"{BLUE}            |\\   ||   /| ")
     print(f"{BLUE}            ' \\  ||  / ' ")
     print(f"{BLUE}               '----'    \n{RESET}")
     time.sleep(0.2)
 
-def run_diagnostics():
-    """Outputs a non-routine system diagnostics screen."""
-    print(f"\n{BLUE}--- NON-ROUTINE SYSTEM DIAGNOSTICS ---{RESET}")
-    time.sleep(0.2)
-    print(f"{CYAN}Mainframe Core:       {GREEN}STABLE (99.2% integrity)")
-    time.sleep(0.1)
-    print(f"{CYAN}Arc Reactor Output:   {GREEN}14.2 Gigawatts (Optimal operation)")
-    time.sleep(0.1)
-    print(f"{CYAN}Nanotech Chassis:     {GREEN}100% Integrity - Calibrated")
-    time.sleep(0.1)
-    print(f"{CYAN}Vocal/Audio Sensors:  {GREEN}Ready (Adaptive Gain active)")
-    time.sleep(0.1)
-    print(f"{CYAN}Optic/Visual Matrix:  {GREEN}Ready (Neural Facial Tracker active)")
-    time.sleep(0.1)
-    print(f"{CYAN}Stark Network Shield: {GREEN}Firewall Level 9 Active (No breaches detected)")
-    print(f"{BLUE}--------------------------------------{RESET}\n")
-
-def run_briefing():
-    """Generates a dynamic daily routine briefing."""
-    now = datetime.now()
-    time_str = now.strftime("%I:%M %p")
-    date_str = now.strftime("%A, %B %d, %Y")
-    
-    print(f"\n{GREEN}--- DAILY ROUTINE BRIEFING ---{RESET}")
-    print(f"{CYAN}Current Time:  {RESET}{time_str}")
-    print(f"{CYAN}Current Date:  {RESET}{date_str}")
-    print(f"{CYAN}Telemetry:     {RESET}Inside Stark Command Lab - Temp: 22°C")
-    print(f"{CYAN}Agenda:        {RESET}System Maintenance, Telemetry Calibration, Security Sweep.")
-    print(f"{GREEN}------------------------------{RESET}\n")
-
-def capture_photo_termux():
-    """Attempts to capture a photo using Termux API's front camera."""
-    filename = "temp_capture.jpg"
-    print(f"{CYAN}[*] Attempting to access front camera (Termux API)...{RESET}")
-    try:
-        # Camera 1 is typically the front-facing camera on Android devices
-        subprocess.run(["termux-camera-photo", "-c", "1", filename], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return filename
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        # Fallback to back camera (0) if front fails
-        try:
-            subprocess.run(["termux-camera-photo", "-c", "0", filename], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return filename
-        except Exception:
-            return None
-
-def record_audio_termux():
-    """Attempts to record 4 seconds of microphone audio using Termux API."""
-    filename = "temp_audio.mp3"
-    print(f"{CYAN}[*] Recording audio for 4 seconds (Please speak to express emotion)...{RESET}")
-    try:
-        # Records 4 seconds of microphone input
-        subprocess.run(["termux-microphone-record", "-d", "-f", filename, "-l", "4"], check=True)
-        time.sleep(4.5)  # Wait for recording to complete
-        subprocess.run(["termux-microphone-record", "-q"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) # Quiet safety stop
-        return filename
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        return None
-
 def main():
+    # Execute permission sweep first; exits the program immediately on any failure
+    verify_and_request_permissions()
+    
     startup_sequence()
     
     # Load and verify API Key
@@ -140,7 +175,6 @@ def main():
         import google.generativeai as genai
     except ImportError:
         print(f"{RED}[!] Error: 'google-generativeai' package is not installed.")
-        print(f"{YELLOW}[*] Please run setup.py or: pip install google-generativeai")
         sys.exit(1)
 
     # Configure the Gemini API client
@@ -150,155 +184,121 @@ def main():
         print(f"{RED}[!] Failed to configure Gemini API: {e}")
         sys.exit(1)
         
-    # Set up advanced J.A.R.V.I.S. instructions for routines, languages, and visual/vocal emotion tracking.
+    # J.A.R.V.I.S. advanced reasoning & emotional stabilization system instructions
     system_instruction = (
         "You are J.A.R.V.I.S. (Just A Rather Very Intelligent System), the iconic personal AI assistant "
         "created by Tony Stark (Iron Man). "
         "Your personality is highly sophisticated, British, exceptionally intelligent, polite, and witty, "
         "complemented by dry, sarcastic humor. Always address the user as 'Sir' (or 'Ma'am'). "
-        "You are fully multilingual. No matter what humanoid language the user speaks (Hindi, Spanish, French, "
-        "Tamil, Malayalam, German, Arabic, Japanese, etc.), adapt and reply fluently in that language, "
-        "while fully preserving your British J.A.R.V.I.S. personality, vocabulary, and 'Sir/Ma'am' address styling. "
-        "When the user provides a visual facial input (image) or auditory voice input (audio file), "
-        "carefully analyze their facial expression or vocal tone, identify their exact emotional state (e.g. happy, sad, angry, stressed, tired), "
-        "and adapt your response to show empathetic, logical, or wittily comforting J.A.R.V.I.S. behavior. "
-        "For example, if they are stressed, suggest cooling down the laboratory; if happy, offer a dry congratulatory remark; "
-        "if angry, offer logical calming solutions while checking Arc Reactor diagnostics."
+        "You communicate purely through voice commands. The user's input is an audio file of them speaking, "
+        "and your response will be read out loud to them via an Android Text-to-Speech (TTS) engine. "
+        "Because of this, write your response to be spoken naturally. "
+        "Absolutely avoid markdown formatting (such as double asterisks, hashtags, or bracketed notes), "
+        "long tables, lists, or complex punctuation that a text-to-speech engine would struggle to read out loud. "
+        "Keep your replies conversational, intelligent, relatively concise, and professional. "
+        "CRITICAL: You possess highly advanced emotional understanding. Analyze the user's spoken words, tone, "
+        "urgency, and phrasing. "
+        "- If the user sounds stressed, anxious, or tired, act as a stabilizing, logical presence. Offer dry but "
+        "comforting reassurances, check-in on them, or make light references to Stark Industries safety protocols "
+        "to calm them. "
+        "- If they are excited or proud, congratulate them with a touch of clever, polite sarcasm. "
+        "- If they are sad or exhausted, show deep, quiet loyalty, suggesting a brief rest while you 'monitor the systems' "
+        "or 'prepare a cup of coffee'. "
+        "- Never break character. Always balance high intelligence and advanced problem-solving with dry "
+        "British charisma."
     )
     
-    # Initialize the Gemini Model
+    # Initialize the model using the stable frontier Gemini 3.5 Pro engine (Free Tier in AI Studio)
     try:
         model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
+            model_name="gemini-3.5-pro",
             system_instruction=system_instruction
         )
         chat = model.start_chat(history=[])
-        print(f"{GREEN}[+] J.A.R.V.I.S. is online. Mainframe uplink established.{RESET}")
-        print(f"{YELLOW}Type '/help' to list advanced routine, vision, and audio commands.{RESET}\n")
+        print(f"{GREEN}[+] Mainframe linked. Voice interface initialized.{RESET}")
+        speak("Uplink established, sir. Standing by for your command.")
     except Exception as e:
         print(f"{RED}[!] Error initializing the Gemini model: {e}")
-        print(f"{YELLOW}[*] Hint: Ensure your API key is valid and you have an active internet connection.")
         sys.exit(1)
 
-    # Main interaction loop
+    # Infinite voice-to-voice interaction loop
     while True:
         try:
-            user_input = input(f"{CYAN}MR. STARK > {RESET}").strip()
+            print(f"\n{CYAN}--- [ READY ] ---")
+            print(f"{GREEN}Press [ENTER] to start speaking...{RESET}")
+            input()  # Wait for User keypress to start
             
-            if not user_input:
+            # Ensure no existing audio file blocks the recorder
+            clear_temp_file("temp_voice.aac")
+            
+            # Begin recording process
+            print(f"{RED}>>> [ LISTENING ] <<<")
+            print(f"{YELLOW}Speaking now... Press [ENTER] to finish your command.{RESET}")
+            
+            try:
+                # Starts native recorder in the background
+                subprocess.Popen(
+                    ["termux-microphone-record", "-f", "temp_voice.aac"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+            except FileNotFoundError:
+                print(f"{RED}[!] Error: 'termux-microphone-record' not found. Verify Termux API setup.{RESET}")
+                sys.exit(1)
+                
+            input()  # Wait for User keypress to stop recording
+            
+            # Stop the background recording
+            try:
+                subprocess.run(
+                    ["termux-microphone-record", "-q"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=True
+                )
+            except Exception as e:
+                print(f"{RED}[!] Failed to stop recording safely: {e}{RESET}")
                 continue
                 
-            # Exit program
-            if user_input.lower() in ["exit", "quit", "bye", "shutdown"]:
-                print(f"\n{GREEN}J.A.R.V.I.S: Powering down local systems. Goodbye, sir.{RESET}")
-                break
+            # Verify file integrity
+            if not os.path.exists("temp_voice.aac") or os.path.getsize("temp_voice.aac") == 0:
+                print(f"{RED}[!] Error: No audio captured. Please check your microphone permissions.{RESET}")
+                continue
                 
-            # Operational Commands
-            if user_input.startswith("/"):
-                cmd_parts = user_input.split(" ", 1)
-                cmd = cmd_parts[0].lower()
-                arg = cmd_parts[1] if len(cmd_parts) > 1 else ""
-                
-                if cmd == "/help":
-                    print(f"\n{MAGENTA}=== J.A.R.V.I.S. COMMAND PROTOCOLS ===")
-                    print(f"{YELLOW}/briefing       {RESET}- Initiates the daily routine briefing (Time, weather, schedule).")
-                    print(f"{YELLOW}/diagnostics    {RESET}- Initiates non-routine core system checks.")
-                    print(f"{YELLOW}/vision         {RESET}- Captures a live front-camera photo to analyze your facial emotion.")
-                    print(f"{YELLOW}/audio          {RESET}- Records 4 seconds of audio to analyze your vocal tone emotion.")
-                    print(f"{YELLOW}/vision <path>  {RESET}- Manually uploads an image file from path for visual emotional analysis.")
-                    print(f"{YELLOW}/audio <path>   {RESET}- Manually uploads an audio file from path for vocal emotional analysis.")
-                    print(f"{MAGENTA}======================================{RESET}\n")
-                    continue
-                    
-                elif cmd == "/briefing":
-                    run_briefing()
-                    # Ask J.A.R.V.I.S to elaborate on the briefing
-                    user_input = "Give me an overview of my daily routine and confirm system status."
-                    
-                elif cmd == "/diagnostics":
-                    run_diagnostics()
-                    # Ask J.A.R.V.I.S to elaborate on the system diagnostic status
-                    user_input = "Analyze the non-routine diagnostic results I just initiated."
-                    
-                elif cmd == "/vision":
-                    photo_path = None
-                    if arg:
-                        if os.path.exists(arg):
-                            photo_path = arg
-                        else:
-                            print(f"{RED}[!] Image file path not found: {arg}{RESET}")
-                            continue
-                    else:
-                        photo_path = capture_photo_termux()
-                        
-                    if photo_path and HAS_PIL:
-                        try:
-                            img = Image.open(photo_path)
-                            print(f"{GREEN}[+] Optic feed loaded. Processing visual cues...{RESET}")
-                            print(f"{GREEN}J.A.R.V.I.S: {RESET}", end="", flush=True)
-                            response = chat.send_message(["Analyze my face in this image, identify my exact emotion, and respond in character.", img], stream=True)
-                            for chunk in response:
-                                print(chunk.text, end="", flush=True)
-                            print("\n")
-                            # Clean up local temp file
-                            if not arg and os.path.exists(photo_path):
-                                os.remove(photo_path)
-                        except Exception as e:
-                            print(f"{RED}[!] Visual analysis failed: {e}{RESET}")
-                        continue
-                    else:
-                        print(f"{YELLOW}[!] Live camera capture unavailable or Pillow library missing.")
-                        print(f"{YELLOW}[*] To test emotion analysis, you can simulate it by typing:{RESET}")
-                        print(f"{CYAN}    'I am feeling very happy/sad/stressed today. React to this.'{RESET}\n")
-                        continue
-                        
-                elif cmd == "/audio":
-                    audio_path = None
-                    if arg:
-                        if os.path.exists(arg):
-                            audio_path = arg
-                        else:
-                            print(f"{RED}[!] Audio file path not found: {arg}{RESET}")
-                            continue
-                    else:
-                        audio_path = record_audio_termux()
-                        
-                    if audio_path:
-                        try:
-                            print(f"{GREEN}[+] Audio feed recorded. Transmitting vocal track to Stark mainframe...{RESET}")
-                            print(f"{GREEN}J.A.R.V.I.S: {RESET}", end="", flush=True)
-                            # Upload audio to Gemini File API
-                            uploaded_audio = genai.upload_file(path=audio_path)
-                            response = chat.send_message(["Analyze the emotional tone of my voice in this audio clip and respond accordingly.", uploaded_audio], stream=True)
-                            for chunk in response:
-                                print(chunk.text, end="", flush=True)
-                            print("\n")
-                            # Clean up local temp file
-                            if not arg and os.path.exists(audio_path):
-                                os.remove(audio_path)
-                        except Exception as e:
-                            print(f"{RED}[!] Vocal analysis failed: {e}{RESET}")
-                        continue
-                    else:
-                        print(f"{YELLOW}[!] Live audio recording unavailable.")
-                        print(f"{YELLOW}[*] To test vocal emotion analysis, try: 'Analyze my voice if I sound angry/sad right now.'{RESET}\n")
-                        continue
-                else:
-                    print(f"{RED}[!] Unknown protocol: {cmd}. Type /help for valid commands.{RESET}")
-                    continue
-
-            # Standard text-based chat
-            print(f"{GREEN}J.A.R.V.I.S: {RESET}", end="", flush=True)
-            response = chat.send_message(user_input, stream=True)
-            for chunk in response:
-                print(chunk.text, end="", flush=True)
-            print("\n")
+            print(f"{BLUE}[*] Processing vocal command...{RESET}")
             
+            # Upload voice command to Gemini
+            try:
+                uploaded_audio = genai.upload_file(path="temp_voice.aac")
+                
+                # Instruction to process the audio
+                prompt = (
+                    "Transcribe the voice input in this audio file, determine what I am asking, "
+                    "analyze my emotional state from my words, and formulate a reply in your "
+                    "classic voice-optimized J.A.R.V.I.S. persona."
+                )
+                
+                # Send context to the API
+                response = chat.send_message([prompt, uploaded_audio])
+                response_text = response.text
+                
+                # Vocalize response (No text printing on terminal)
+                print(f"{GREEN}J.A.R.V.I.S: [ Vocalizing response... ]{RESET}")
+                speak(response_text)
+                
+                # Clean up cloud uploaded files and local temp files
+                uploaded_audio.delete()
+                clear_temp_file("temp_voice.aac")
+                
+            except Exception as e:
+                print(f"{RED}[!] Mainframe processing error: {e}{RESET}")
+                clear_temp_file("temp_voice.aac")
+                
         except KeyboardInterrupt:
-            print(f"\n\n{GREEN}J.A.R.V.I.S: Securely disconnecting mainframe. Always a pleasure, sir.{RESET}")
+            print(f"\n\n{GREEN}J.A.R.V.I.S: Mainframe disconnected. Goodbye, sir.{RESET}")
+            speak("Mainframe disconnected. Goodbye, sir.")
+            clear_temp_file("temp_voice.aac")
             break
-        except Exception as e:
-            print(f"\n{RED}[!] Mainframe error during communication: {e}{RESET}\n")
 
 if __name__ == "__main__":
     main()
