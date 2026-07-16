@@ -47,13 +47,15 @@ pkg update && pkg upgrade -y
 pkg install git python termux-api -y
 
 git clone https://github.com/problems-arelifepartner/J.A.R.V.I.S.git
-cd J.A.R.V.I.S
+cd jarvis-terminal
 
 python setup.py
 
 echo "YOUR_GEMINI_API_KEY_HERE" > api_key.txt
 
 python jarvis.py
+
+```
 
 Voice Operation Sequence:
 Upon starting, J.A.R.V.I.S. will perform system sweeps. If all permissions are approved, he will announce: "Uplink established, sir. Mainframe is in standby. Speak the activation phrase when ready."
