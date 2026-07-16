@@ -1,9 +1,7 @@
 # J.A.R.V.I.S
 Personal assistant 
- 
-# Fork the tool befor using it and give the https://www.aistudio.google.com API in the api_key.txt file located inside the J.A.R.V.I.S/jarvis-terminal
-```
-```
+
+
 <p>
 <img src= "https://github.com/problems-arelifepartner/J.A.R.V.I.S/blob/443d1475d644763b4631dfe32478eb5dea76a2f9/1000216972.png"/>
 </p> 
