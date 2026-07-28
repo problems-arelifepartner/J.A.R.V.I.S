@@ -45,7 +45,7 @@ def speak(engine: AudioEngine, text: str):
 def verify_and_request_permissions(config: Config):
     """Checks and requests necessary permissions; returns True if ok."""
     print(f"{CYAN}[*] J.A.R.V.I.S. Core: Performing hardware & permission sweep...{RESET}")
-    time.sleep(0.5)
+    time.sleep(0.2)
 
     if config.is_termux:
         # Check termux tools existence
@@ -59,15 +59,15 @@ def verify_and_request_permissions(config: Config):
             try:
                 print(f"{YELLOW}[*] Initiating 'termux-setup-storage'...{RESET}")
                 subprocess.run(["termux-setup-storage"], check=False)
-                time.sleep(2)
+                time.sleep(1)
             except Exception:
                 pass
 
-        # Microphone quick check (attempt short recording)
+        # Microphone quick check (attempt extremely short recording to conserve resources)
         test_file = safe_temp_filename(".aac")
         try:
             p = subprocess.Popen(["termux-microphone-record", "-f", test_file], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            time.sleep(1)
+            time.sleep(0.8)
             # stop
             subprocess.run(["termux-microphone-record", "-q"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if os.path.exists(test_file) and os.path.getsize(test_file) > 0:
@@ -80,7 +80,6 @@ def verify_and_request_permissions(config: Config):
             return False
     else:
         # Desktop: ensure we have a recognizer if required
-        # Not strictly requiring anything here; audio_engine will handle the lack of SR gracefully
         pass
 
     return True
@@ -93,7 +92,7 @@ def shutil_which(cmd: str):
         return None
 
 def check_wake_word_via_transcription(audio_path, wake_words=None):
-    # Transcribe using genai_client's local transcription
+    # Transcribe using genai_client's local transcription (fast small models)
     text = genai_client.transcribe_audio_local(audio_path)
     return genai_client.detect_wake_word_from_text(text, wake_words=wake_words)
 
@@ -103,21 +102,19 @@ def capture_and_process_command(engine: AudioEngine, system_instruction: str):
     try:
         # Termux recording preferred when available
         if engine.config.is_termux and shutil_which("termux-microphone-record"):
-            # start recording, stop after fixed duration
+            # start recording, stop after fixed duration (shorter on mobile to save RAM)
             p = subprocess.Popen(["termux-microphone-record", "-f", cmd_file], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            time.sleep(5.5)
+            time.sleep(4.0)
             try:
                 subprocess.run(["termux-microphone-record", "-q"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except Exception:
                 pass
         else:
-            # Non-termux: try arecord or fallback to speech_recognition usage (we will instruct user to run via audio_engine.listen)
-            # For simplicity, call audio_engine.listen() to get a transcription directly
-            transcription = engine.listen()
+            # Non-termux: fallback to recognizer
+            transcription = engine.listen(timeout=4, phrase_time_limit=8)
             if not transcription:
                 speak(engine, "I am sorry, sir. I did not detect any input. Returning to standby.")
                 return
-            # Ask LLM for a response
             reply = genai_client.chat_response(transcription, system_instruction=system_instruction)
             speak(engine, reply)
             return
@@ -128,7 +125,7 @@ def capture_and_process_command(engine: AudioEngine, system_instruction: str):
             clear_temp_file(cmd_file)
             return
 
-        # Use wrapper to transcribe and reply
+        # Use wrapper to transcribe and reply with conservative token limits for low-RAM
         reply = genai_client.transcribe_and_chat(cmd_file, system_instruction=system_instruction)
         speak(engine, reply)
     except Exception as e:
@@ -153,13 +150,12 @@ def main():
     print(f"{BLUE}         STARK INDUSTRIES MAINFRAME              ")
     print(f"{BLUE}               SYSTEM VERSION 12.0.0             ")
     print(f"{BLUE}=================================================={RESET}")
-    time.sleep(0.3)
+    time.sleep(0.2)
     engine.display_logo()
-    time.sleep(0.3)
+    time.sleep(0.2)
 
-    # Load API key from config if available and configure genai_client if needed
+    # API key detection
     if config.has_api_key():
-        # prefer OpenAI env var already enforced by genai_client import
         pass
     else:
         print(f"{YELLOW}[*] Warning: No API key detected. The assistant will still try local transcription and fallbacks.{RESET}")
@@ -170,7 +166,6 @@ def main():
         "Address the user as 'Sir' or 'Ma'am'. Keep replies natural and voice-friendly."
     )
 
-    # Standby loop: passive wake detection via short recordings if termux, otherwise rely on audio_engine.listen
     try:
         print(f"{GREEN}[+] Mainframe linked. Standby acoustic monitoring active.{RESET}")
         speak(engine, "Uplink established, sir. Mainframe is in standby. Speak the activation phrase when ready.")
@@ -185,7 +180,7 @@ def main():
                     wake_file = safe_temp_filename(".wav")
                     try:
                         p = subprocess.Popen(["termux-microphone-record", "-f", wake_file], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        time.sleep(2.5)
+                        time.sleep(1.5)
                         try:
                             subprocess.run(["termux-microphone-record", "-q"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                         except Exception:
@@ -211,18 +206,15 @@ def main():
                             speak(engine, "Always, sir. What is your directive?")
                             capture_and_process_command(engine, system_instruction)
                     else:
-                        # no recognizer available: fallback sleep until user manually triggers by pressing Enter
                         print("[Info] No microphone/recognizer available. Press Enter to simulate activation, or Ctrl+C to quit.")
                         input()
                         capture_and_process_command(engine, system_instruction)
-                # small sleep to avoid busy loop
-                time.sleep(0.2)
+                time.sleep(0.15)
             except KeyboardInterrupt:
                 print(f"\n\n{GREEN}J.A.R.V.I.S: Mainframe disconnected. Goodbye, sir.{RESET}")
                 speak(engine, "Mainframe disconnected. Goodbye, sir.")
                 break
             except Exception as e:
-                # Log and continue loop
                 print(f"{RED}[Loop Error] {e}{RESET}")
                 time.sleep(1)
     finally:
