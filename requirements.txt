@@ -6,3 +6,6 @@ gTTS>=2.4.6
 term-image>=0.12.0
 pydub>=0.25.1
 requests>=2.31.0
+opencv-python
+mediapipe
+pyautogui
