@@ -1,8 +1,16 @@
 import cv2
 import os
-from virtual_mouse import config as vm_config
-from virtual_mouse.hand_tracker import HandTracker
-from virtual_mouse.mouse_controller import MouseController
+try:
+    # Prefer package-style imports when the module is run as a package
+    from virtual_mouse import config as vm_config
+    from virtual_mouse.hand_tracker import HandTracker
+    from virtual_mouse.mouse_controller import MouseController
+except Exception:
+    # Fallback to local imports when executed directly from the virtual_mouse directory
+    import config as vm_config
+    from hand_tracker import HandTracker
+    from mouse_controller import MouseController
+
 
 def main():
     cap = cv2.VideoCapture(0)
@@ -64,6 +72,7 @@ def main():
 
     cap.release()
     cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     main()
