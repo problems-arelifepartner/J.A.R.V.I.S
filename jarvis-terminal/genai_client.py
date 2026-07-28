@@ -1,8 +1,13 @@
 """
-Robust AI client wrapper that supports OpenAI (preferred) and Google Generative AI (Gemini) as a fallback.
-This file attempts multiple call patterns to accommodate differences between SDK versions.
+Enhanced genai_client supporting three modes:
+- Cloud: OpenAI (preferred) if OPENAI_API_KEY is set
+- Cloud: Google Gemini if GEMINI_API_KEY is set
+- Local: if LOCAL_MODE=1 or local model libraries are available (gpt4all/llama_cpp and whisper)
+
+This file attempts to use python packages first (gpt4all, llama_cpp, whisper), then falls back to subprocess-based binaries if present.
 """
 import os
+import shutil
 from typing import Optional
 
 # Optional imports
@@ -11,9 +16,10 @@ try:
 except Exception:
     sr = None
 
-# Detect keys
+# Preferred cloud provider detection
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or None
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+LOCAL_MODE = os.environ.get("LOCAL_MODE") == "1"
 
 openai = None
 if OPENAI_API_KEY:
@@ -34,68 +40,96 @@ if GEMINI_API_KEY:
     except Exception:
         genai = None
 
+# Local model python libs
+whisper = None
+try:
+    import whisper as _whisper
+    whisper = _whisper
+except Exception:
+    whisper = None
 
+gpt4all = None
+try:
+    from gpt4all import GPT4All
+    gpt4all = GPT4All
+except Exception:
+    gpt4all = None
+
+llama_cpp = None
+try:
+    from llama_cpp import Llama
+    llama_cpp = Llama
+except Exception:
+    llama_cpp = None
+
+# Helpers
+def _which(bin_name: str) -> Optional[str]:
+    return shutil.which(bin_name)
+
+# Transcription
 def transcribe_audio_local(path: str) -> str:
-    """Transcribe audio using OpenAI Whisper (if available) or SpeechRecognition fallback."""
-    # 1) try OpenAI Whisper transcription if openai client available
-    if openai and hasattr(openai, "Audio"):
+    """Try multiple local transcription methods: whisper (python), SpeechRecognition, or binaries.
+    Returns empty string on failure.
+    """
+    # 1) whisper python package
+    if whisper:
         try:
-            with open(path, "rb") as af:
-                # many openai sdk versions expose openai.Audio.transcribe
-                if hasattr(openai, "Audio") and hasattr(openai.Audio, "transcribe"):
-                    resp = openai.Audio.transcribe("whisper-1", af)
-                    # resp may be a dict or object; try to extract text
-                    if isinstance(resp, dict):
-                        return resp.get("text", "").strip()
-                    if hasattr(resp, "text"):
-                        return resp.text.strip()
-        except Exception:
-            pass
-    # 2) try SpeechRecognition local transcription
-    if sr:
-        try:
-            r = sr.Recognizer()
-            with sr.AudioFile(path) as source:
-                audio = r.record(source)
-            text = r.recognize_google(audio)
+            model = whisper.load_model("small")
+            result = model.transcribe(path)
+            text = result.get("text", "")
             return text.strip()
         except Exception:
-            return ""
+            pass
+
+    # 2) speech_recognition fallback
+    if sr:
+        try:
+            recognizer = sr.Recognizer()
+            with sr.AudioFile(path) as source:
+                audio = recognizer.record(source)
+            text = recognizer.recognize_google(audio)
+            return text.strip()
+        except Exception:
+            pass
+
+    # 3) whisper.cpp/whisperx/other binary paths (best-effort)
+    # Look for common binary names in local_models/bin or system PATH
+    possible_bins = ["main", "whisper.cpp", "whisper"]
+    for b in possible_bins:
+        bin_path = _which(b)
+        if bin_path:
+            try:
+                # calling a generic binary is environment-dependent; attempt simple call
+                out = subprocess_check_output([bin_path, path])
+                return out.strip()
+            except Exception:
+                continue
+
     return ""
 
-
-def detect_wake_word_from_text(text: str, wake_words=None) -> bool:
-    if not text:
-        return False
-    if wake_words is None:
-        wake_words = ["hey jarvis", "hay jarvis", "jarvis", "wake up buddy", "hay buddy", "hey buddy", "assemble"]
-    text_low = text.lower()
-    return any(w in text_low for w in wake_words)
-
-
+# Chat / LLM
 def chat_response(user_text: str, system_instruction: Optional[str] = None, max_tokens: int = 512) -> str:
-    """Return a reply string. Try OpenAI, then Google Generative AI, else fallback."""
+    """Return a reply string. Tries cloud providers first, then local models if enabled.
+    """
     if not user_text:
         return "I am sorry, I did not catch that."
 
-    # 1) OpenAI ChatCompletion (classic)
+    # 1) OpenAI
     if openai:
         try:
             messages = []
             if system_instruction:
                 messages.append({"role": "system", "content": system_instruction})
             messages.append({"role": "user", "content": user_text})
-            # Try older ChatCompletion API
-            resp = None
+            # Try classic ChatCompletion
             try:
                 resp = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=messages, max_tokens=max_tokens, temperature=0.6)
                 return resp["choices"][0]["message"]["content"].strip()
             except Exception:
-                # Try newer patterns (openai.Chat.create or client-based)
+                # Try new client style (openai>=1.0 clients)
                 try:
                     client = openai.OpenAI()
                     r = client.chat.completions.create(model="gpt-3.5-turbo", messages=messages, max_tokens=max_tokens)
-                    # response structure may differ
                     if hasattr(r, "choices"):
                         return r.choices[0].message.content
                     if isinstance(r, dict):
@@ -105,26 +139,24 @@ def chat_response(user_text: str, system_instruction: Optional[str] = None, max_
         except Exception:
             pass
 
-    # 2) Google Generative AI (Gemini) via google.generativeai (best-effort)
+    # 2) Gemini (google.generativeai)
     if genai:
         try:
-            # Preferred new-style responses API
             if hasattr(genai, "responses"):
                 try:
                     resp = genai.responses.generate(model="gemini-3.5-pro", input=(system_instruction or "") + "\n\n" + user_text)
-                    # extract text from response
-                    if hasattr(resp, "candidates") and len(resp.candidates) > 0:
-                        c = resp.candidates[0]
+                    # extract candidate content
+                    candidates = getattr(resp, "candidates", None)
+                    if candidates and len(candidates) > 0:
+                        c = candidates[0]
                         if hasattr(c, "content"):
                             return c.content.strip()
                         if isinstance(c, dict):
                             return c.get("content", "").strip()
-                    # fallback to resp.output
                     if hasattr(resp, "output"):
                         return str(resp.output).strip()
                 except Exception:
                     pass
-            # older helper
             if hasattr(genai, "generate_text"):
                 try:
                     resp = genai.generate_text(model="gemini-3.5-pro", prompt=(system_instruction or "") + "\n\n" + user_text)
@@ -137,15 +169,65 @@ def chat_response(user_text: str, system_instruction: Optional[str] = None, max_
         except Exception:
             pass
 
-    # 3) fallback
+    # 3) Local models if requested (LOCAL_MODE=1) or python libs present
+    if LOCAL_MODE or gpt4all or llama_cpp:
+        # Try GPT4All python package first
+        if gpt4all:
+            try:
+                model_name = os.environ.get("GPT4ALL_MODEL") or "gpt4all-lora-quantized.bin"
+                mdl = GPT4All(model_name)
+                prompt = (system_instruction + "\n\n" if system_instruction else "") + user_text
+                resp = mdl.generate(prompt=prompt, max_tokens=max_tokens)
+                # resp may be a string or object
+                if isinstance(resp, str):
+                    return resp.strip()
+                # Try to parse object
+                return str(resp).strip()
+            except Exception:
+                pass
+
+        # Try llama_cpp
+        if llama_cpp:
+            try:
+                model_path = os.environ.get("LLAMA_MODEL_PATH") or "./local_models/llama/model.bin"
+                api = Llama(model_path=str(model_path))
+                prompt = (system_instruction + "\n\n" if system_instruction else "") + user_text
+                r = api.create(prompt=prompt, max_tokens=max_tokens, temperature=0.6)
+                # r.choices[0].text or r['choices'] depending on version
+                if hasattr(r, "choices"):
+                    return r.choices[0].text.strip()
+                if isinstance(r, dict):
+                    return r.get("choices", [{}])[0].get("text", "").strip()
+            except Exception:
+                pass
+
+        # As last resort, try subprocess-based llama.cpp/gpt4all CLI if present
+        if _which("gpt4all"):
+            try:
+                proc = subprocess_check_output(["gpt4all", "-m", os.environ.get("GPT4ALL_MODEL_PATH", "gpt4all.bin"), "-p", user_text])
+                return proc.strip()
+            except Exception:
+                pass
+
+    # 4) Fallback: echo
     return f"I heard: {user_text}"
 
-
+# Combined helper
 def transcribe_and_chat(audio_path: str, system_instruction: Optional[str] = None) -> str:
-    # Try to transcribe using best available method
     text = transcribe_audio_local(audio_path)
     if not text:
         return "Apologies, sir. I could not transcribe that audio."
-    # Then chat
     reply = chat_response(text, system_instruction=system_instruction)
     return reply
+
+# small wrappers for subprocess
+import subprocess
+
+def subprocess_check_output(cmd_list):
+    try:
+        out = subprocess.check_output(cmd_list, stderr=subprocess.DEVNULL)
+        if isinstance(out, bytes):
+            return out.decode("utf-8", errors="ignore")
+        return str(out)
+    except Exception:
+        return ""
