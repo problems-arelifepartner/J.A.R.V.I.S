@@ -24,7 +24,7 @@ import time
 from config import Config
 from audio_engine import AudioEngine
 import tools
-import jarvis_terminal.genai_client as gc
+import genai_client as gc
 
 # Colors (best-effort)
 try:
